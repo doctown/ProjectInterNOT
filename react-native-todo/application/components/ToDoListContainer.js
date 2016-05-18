@@ -1,78 +1,38 @@
 'use strict';
 var styles = require('../styles/styles');
 var React = require('react-native');
-var ToDoList = require('./ToDoList');
-var ToDoEdit = require('./ToDoEdit');
 var FileSystemTests = require('./FileSystemTests');
 var RealmDbTests = require('./RealmDbTests');
 var RemoteDbTests = require('./RemoteDbTests');
 var TestSuite = require('./TestSuite');
-var { Text, View, ListView, TouchableHighlight, AlertIOS } = React;
+var Login = require('./Authentication/Login')
+var { Text, View, ListView, TouchableHighlight, AlertIOS, AsyncStorage } = React;
 const Realm = require('realm');
 
 
 class ToDoContainer extends React.Component {
     constructor() {
         super();
-          //  let realm = new Realm(
-           // {
-           //   schema: [{name: 'Dog', properties: {name: 'string'}}]
-           // });
-
-           // realm.write(() => {
-           //   realm.create('Dog', {name: 'Rex'});
-           // }
-          //  );
 
         this.state = {
             items: [
                 {txt: 'Learn react native', complete: false},
                 {txt: 'Make a to-do app', complete: true}
             ],
-            realmPath: Realm.defaultPath
+            realmPath: Realm.defaultPath,
+            loggedIn: false
         };
-        this.alertMenu = this.alertMenu.bind(this);
-        this.deleteItem = this.deleteItem.bind(this);
-        this.updateItem = this.updateItem.bind(this);
-        this.openItem = this.openItem.bind(this);
-
     }
 
-    alertMenu(rowData, rowID) {
-        AlertIOS.alert(
-            'Quick Menu',
-            null,
-            [
-                {text: 'Delete', onPress: () => this.deleteItem(rowID)},
-                {text: 'Edit', onPress: () => this.openItem(rowData, rowID)},
-                {text: 'Cancel'}
-            ]
-        )
-    }
-
-    deleteItem(index) {
-        var items = this.state.items;
-        items.splice(index, 1);
-        this.setState({items: items})
-    }
-
-    updateItem(item, index) {
-        var items = this.state.items;
-        if (index) {
-            items[index] = item;
-        }
-        else {
-            items.push(item)
-        }
-        this.setState({items: items});
-        this.props.navigator.pop();
-    }
-
-    openItem(rowData, rowID) {
-        this.props.navigator.push({
-            title: rowData && rowData.txt || 'New Item',
-            component: ToDoEdit,
-            passProps: {item: rowData, id: rowID, update: this.updateItem}
+    componentDidMount() {
+        AsyncStorage.getItem('authData').then(authData => {
+            // console.log('authData:',authData, this.state.loggedIn);
+            if(authData) {
+              authData = JSON.parse(authData);
+              this.setState({
+                loggedIn: true
+              });
+            }
         });
     }
 
@@ -100,21 +60,39 @@ class ToDoContainer extends React.Component {
         });
     }
 
+
     openTestSuite() {
         this.props.navigator.push({
-            title: 'Testing Suite',
-            component: TestSuite,
-            passProps: {realmPath: this.state.realmPath}
+          title: 'Testing Suite',
+          component: TestSuite,
+          passProps: {realmPath: this.state.realmPath}
+        });
+    }
+
+    onLogin() {
+        this.props.navigator.push({
+            title: 'Login',
+            component: Login
         });
     }
 
     render() {
         return (
-            <View style={{flex:1}}>
-                <ToDoList
-                    items={this.state.items}
-                    onPressItem={this.openItem}
-                    onLongPressItem={this.alertMenu}/>
+          <View style = {styles.container}>
+                {(this.state.loggedIn
+                    ? ( <TouchableHighlight
+                        style={[styles.button, styles.newButton]}
+                        underlayColor='#99d94f'
+                        onPress={this.onLogin.bind(this)}>
+                        <Text style={styles.buttonText}>Logout</Text>
+                      </TouchableHighlight> )
+                    : (<TouchableHighlight
+                        style={[styles.button, styles.newButton]}
+                        underlayColor='#99d94f'
+                        onPress={this.onLogin.bind(this)}>
+                        <Text style={styles.buttonText}>Login</Text>
+                      </TouchableHighlight>)
+                )}
 
                 <TouchableHighlight
                     style={[styles.button, styles.newButton]}
@@ -145,12 +123,6 @@ class ToDoContainer extends React.Component {
                     <Text style={styles.buttonText}>Auto Test Suite</Text>
                 </TouchableHighlight>
 
-                <TouchableHighlight
-                    style={[styles.button, styles.newButton]}
-                    underlayColor='#99d9f4'
-                    onPress={this.openItem}>
-                    <Text style={styles.buttonText}>+</Text>
-                </TouchableHighlight>
             </View>
         );
     }

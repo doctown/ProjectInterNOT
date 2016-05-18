@@ -1,8 +1,8 @@
-
 'use strict';
 
+import RealmSync from '../lib/realmSync';
+import SyncSchema from '../helpers/SyncSchema';
 import Realm from 'realm';
-
 class Dog {}
 Dog.schema = {
   name: 'Dog',
@@ -12,17 +12,28 @@ Dog.schema = {
   },
 };
 
-class SyncQueue {}
-SyncQueue.schema = {
-  name: 'SyncQueue',
-  properties: {
-    usn: Realm.Types.INT,
-    realmSyncId: Realm.Types.STRING,
-    type: Realm.Types.STRING,
-    body: Realm.Types.STRING,
-    modified: Realm.Types.INT,
-  },
-};
+module.exports.realmSync = new RealmSync([Dog]);
+//module.exports.realm = new Realm();
 
 
-export default new Realm({schema: [Dog, SyncQueue]});
+
+
+// //
+// 'use strict';
+//
+// import Realm from 'realm';
+// import SyncSchema from '../helpers/SyncSchema';
+// import RealmSync from '../lib/realmSync';
+//
+//
+// class Dog {}
+// Dog.schema = {
+//   name: 'Dog',
+//   properties: {
+//     name: Realm.Types.STRING,
+//     realmSyncId: Realm.Types.STRING,
+//   },
+// };
+//
+// // User has to
+// export default new Realm({schema: [Dog, SyncSchema.SyncQueue]});

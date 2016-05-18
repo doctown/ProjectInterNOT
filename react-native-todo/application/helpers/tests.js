@@ -1,14 +1,17 @@
 const Realm = require('realm');
 const schemas = require('./schemas');
-const realmSync = require('./realmSync');
-const sync = require('./Sync');
 var chai = require('chai');
 let expect = chai.expect;
 let personType = 'PersonObject';
 let syncType = 'SyncQueue';
 
+//These will be in the node module
+const RealmSync = require('../lib/realmSync');
+const remoteSync = require('../lib/helpers/remoteSync');
+const sync = require('../lib/helpers/Sync');
+
 module.exports.runTests = function() {
-  var realm; // = new Realm();
+  var realm;
   var basePath = Realm.defaultPath.split('/');
   basePath.splice(basePath.length - 1, 1);
   basePath = basePath.join('/');
@@ -16,23 +19,23 @@ module.exports.runTests = function() {
   var realmRemoteMockPath = 'realmRemoteMock.realm';
   // Create the realm database
   // Add a test schema to the database
-  let realmLocalSync = new realmSync.RealmSync(realmLocalPath, [schemas.PersonObject]);
-  let realmRemoteSyncMock = new realmSync.RealmSync(realmRemoteMockPath, [schemas.PersonObject]);
-  let realmLocal = new Realm({
-    path: realmLocalPath
-  });
-  let realmRemoteMock = new Realm({
-    path: realmRemoteMockPath
-  });
+  let realmLocalSync = new RealmSync([schemas.PersonObject], realmLocalPath);
+  let realmRemoteSyncMock = new RealmSync([schemas.PersonObject], realmRemoteMockPath);
+  let realmLocal = realmLocalSync.getRealmInstance();
+  let realmRemoteMock = realmRemoteSyncMock.getRealmInstance();
   // Delete any existing test databases
   clearDatabase(realmLocal, realmRemoteMock);
 
-  console.log("Saving realm data in ", basePath);
+  console.log("Auto testing saving realm data in ", basePath);
 
   // Run tests
   var databaseTestResults = testDatabaseInteraction(realmLocal, realmLocalSync);
   clearDatabase(realmLocal, realmRemoteMock);
   var syncLocallyResults = testSyncLocally(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock);
+  //clearDatabase(realmLocal, realmRemoteMock);
+  // var remoteSyncResults = testRemoteSync(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock);
+  clearDatabase(realmLocal, realmRemoteMock);
+  testConflictResolution(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock);
 };
 
 // TODO: Migrate over test cases
@@ -141,39 +144,12 @@ var testAuthenticationService = function() {
 };
 
 /**
- * Test synchronization with the remote AWS cloud store.
- */
-var testRemoteSync = function(realmLocal) {
-  // it('should receive data from remote database based on synchronization', function(done) {
-  var test1 = function() {
-    // done();
-  }();
-
-  // it('should ...', function(done) {
-  var test2 = function() {
-    //done();
-  }();
-};
-
-/**
  * 'Database restoration through synchronization with another database.
  */
 var testSyncLocally = function(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock) {
 
-  //it('should provide a 0 sync count for a newly initialized database', function(done) {
-  var test1 = function() {
-
-    //done();
-  }();
-
-  //it('should increment the sync count when data is passed to the external store', function(done) {
-  var test2 = function() {
-
-    // done();
-  }();
-
   // it('should sync local database from syncQueue data in remoteSync database', function(done) {
-  var test4 = function() {
+  var test1 = function() {
     // Add a person to the remote mock
     realmRemoteMock.write(() => {
       realmRemoteSyncMock.create(personType, {
@@ -196,7 +172,7 @@ var testSyncLocally = function(realmLocal, realmRemoteMock, realmLocalSync, real
     // Use the sync method on local to sync
     sync.localSyncFromServer(realmLocal, syncChunk);
     // Verify that the data updated in the local database
-    person = realmLocal.objects(personType);
+    var person = realmLocal.objects(personType);
     expect(person.length).to.be.above(0);
     expect(person[0].name).to.equal('Remote Test');
     expect(person[0].age).to.equal(20);
@@ -206,19 +182,94 @@ var testSyncLocally = function(realmLocal, realmRemoteMock, realmLocalSync, real
   }();
 
   // it('should send data when the local store\'s sync is lower than the external\'s sync count', function(done) {
-  var test5 = function() {
+  var test2 = function() {
 
     // done();
   }();
 };
 
+/**
+ * Test synchronization with the remote AWS cloud store.
+ */
+var testRemoteSync = function(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock) {
+  //it('should increment the sync count when data is passed to the external store', function(done) {
+  var test2 = function() {
+    // add an item to the local database
+    realmLocal.write(() => {
+      realmLocalSync.create(personType, {name: 'LocalTest', age: 90, married: false});
+    });
+    var syncQueue = sync.localSyncQueuePush(realmLocal);
+    // push the sync to remote server
+    remoteSync.pushLocalUpdatesToDB(syncQueue, 'test1', function(err, data) {
+      // check highest usn
+      // TODO: Check that remote server received the update
+      test3();
+    });
+    // done();
+  }();
+
+  // it('should receive data from remote database based on synchronization', function(done) {
+  var test3 = function() {
+    // pull data from server to sync and load with remote chunk
+    // TODO: Only get last update send in test2
+    remoteSync.getUpdatesFromRemoteDB(0, 'test1',function(err, data) {
+      expect(Array.isArray(data)).to.be.true;
+      var syncChunk = sync.convertRemoteDataToSyncChunk(data);
+      sync.incrementalSync(realmRemoteMock, syncChunk, null);
+      var person = realmRemoteMock.objects(personType);
+      expect(person.length).to.be.above(0);
+      expect(person[0].name).to.equal('LocalTest');
+      expect(person[0].age).to.equal(90);
+      expect(person[0].married).to.be.false;
+    });
+    // done();
+  };
+
+  // it('should ...', function(done) {
+  var test4 = function() {
+    //done();
+  }();
+};
 
 /**
  * Conflict resolution.
  */
-var testConflictResolution = function() {
+var testConflictResolution = function(realmLocal, realmRemoteMock, realmLocalSync, realmRemoteSyncMock) {
   // it('should resolve a conflict with same guid', function(done) {
   var test1 = function() {
+    // create an item for local database
+    var localPerson = null;
+    realmLocal.write(() => {
+      localPerson = realmLocalSync.create(personType, {name: 'Local Test', age: 35, married: false});
+    });
+    // Get a sync chunk
+    var localSyncQueue = sync.localSyncQueuePush(realmLocal);
+    // Full sync in the remote
+    var localSyncChunk = sync.convertRemoteDataToSyncChunk(localSyncQueue);
+    sync.localSyncFromServer(realmRemoteMock, localSyncChunk);
+    // Change the local
+    realmLocal.write(() => {
+      localPerson.name = 'Changed Test Locally';
+      realmLocalSync.create(personType, localPerson, true);
+    });
+    // Change the remote
+    var remotePerson = realmRemoteMock.objects(personType)[0];
+    expect(localPerson.realmSyncId).to.equals(remotePerson.realmSyncId);
+    realmRemoteMock.write(() => {
+      remotePerson.name = 'Changed Test Remotely';
+      realmRemoteSyncMock.create(personType, remotePerson, true);
+    });
+    // Get remote sync chunk
+    var remoteSyncQueue = sync.localSyncQueuePush(realmRemoteMock);
+    // Full sync in the remote
+    var remoteSyncChunk = sync.convertRemoteDataToSyncChunk(remoteSyncQueue);
+    // perform an incremental sync in the local database
+    sync.incrementalSync(realmLocal, remoteSyncChunk, sync.timeRemoteServiceWinsPolicy);
+    // check values
+    expect(localPerson.name).to.equals(remotePerson.name);
+    expect(localPerson.age).to.equals(remotePerson.age);
+    expect(localPerson.married).to.equals(remotePerson.married);
+    expect(localPerson.realmSyncId).to.equals(remotePerson.realmSyncId);
     //done();
   }();
 

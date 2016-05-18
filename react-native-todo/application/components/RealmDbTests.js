@@ -1,11 +1,16 @@
 'use strict';
 var styles = require('../styles/styles');
-var scripts = require('../helpers/scripts');
-var realmSync = require('../helpers/realmSync');
+var scripts = require('../lib/helpers/scripts');
 var React = require('react-native');
-var ToDoListItem = require('./ToDoListItem');
 var { View, TouchableHighlight, Text} = React;
-import realm from './realm';
+// import Realm from 'realm';
+// let realm = new Realm();
+import Realm from './realm';
+let realmSync = Realm.realmSync;
+let realm = realmSync.getRealmInstance();
+
+
+const randomNames = ["Afghanistan", "Åland Islands", "Albania", "Algeria", "American Samoa", "AndorrA", "Angola", "Anguilla", "Antarctica", "Antigua and Barbuda", "Argentina", "Armenia", "Aruba", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bermuda", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Bouvet Island", "Brazil", "British Indian Ocean Territory", "Brunei Darussalam", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada", "Cape Verde", "Cayman Islands", "Central African Republic", "Chad", "Chile", "China", "Christmas Island", "Cocos (Keeling) Islands", "Colombia", "Comoros", "Congo", "Congo, The Democratic Republic of the", "Cook Islands", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia"];
 
 
 class RealmDbTests extends React.Component {
@@ -18,37 +23,36 @@ class RealmDbTests extends React.Component {
 
     }
 
-    //
+    randomName() {
+      var randomIndex = Math.floor(Math.random() * randomNames.length);
+      return randomNames[randomIndex];
+    }
+
     addItemToDB() {
       realm.write(() => {
-        realmSync.create('Dog', {name: scripts.randomName(), realmSyncId: scripts.generateGuid()})
+        realmSync.create('Dog', {name: this.randomName()})
       });
     }
 
     //Testing what happens if realm.create is broken.
     addItemToDB2() {
       realm.write(() => {
-        try {
-          realm.create('Dof', {name: 'Phil', realmSyncId: scripts.generateGuid()});
-          console.log('success');
-        } catch(error) {
-          console.log(error);
-        }
+        realmSync.create('Dog', {nafme: 'Phil'});
       });
 
     }
 
     addThenRemoveFromDB() {
       realm.write(() => {
-        var dog = realmSync.create('Dog', {name: scripts.randomName(), realmSyncId: scripts.generateGuid()})
+        var dog = realmSync.create('Dog', {name: this.randomName()})
         realmSync.delete(dog);
-
       });
-
     }
 
     modifyItemInDB() {
-
+      realm.write(() => {
+        realmSync.create('Dog', {name: this.randomName(), realmSyncId: "BCA5465E-F199-AECB"}, true);
+      });
     }
 
     deleteItemFromDB() {
@@ -62,8 +66,15 @@ class RealmDbTests extends React.Component {
       });
     }
 
-    syncDb() {
-      realmSync.sync();
+    syncDbTest() {
+      realmSync.testSync();
+    }
+
+    syncDbReal() {
+      realmSync.sync((err, res) => {
+        console.log("Error: ", err);
+        console.log("Result: ", res);
+      });
     }
 
     deleteAllItemsFromSyncQueue() {
@@ -86,7 +97,6 @@ class RealmDbTests extends React.Component {
 
     listItemsInDB() {
       let syncQueue = realm.objects('SyncQueue')
-      debugger;
       for(var i = 0; i < syncQueue.length; i++) {
         console.log(JSON.stringify(syncQueue[i]));
       }
@@ -118,7 +128,7 @@ class RealmDbTests extends React.Component {
               </TouchableHighlight>
 
               <TouchableHighlight
-                  style={[styles.button, styles.newButton, styles.buttonUnimplemented]}
+                  style={[styles.button, styles.newButton]}
                   underlayColor='#99d9f4'
                   onPress={this.modifyItemInDB.bind(this)}>
                   <Text style={styles.buttonText}>Modify item in DB</Text>
@@ -141,9 +151,11 @@ class RealmDbTests extends React.Component {
               <TouchableHighlight
                   style={[styles.button, styles.newButton]}
                   underlayColor='#99d9f4'
-                  onPress={this.syncDb.bind(this)}>
+                  onPress={this.syncDbReal.bind(this)}>
                   <Text style={styles.buttonText}>Sync realm DB</Text>
               </TouchableHighlight>
+
+
               <TouchableHighlight
                   style={[styles.button, styles.newButton]}
                   underlayColor='#99d9f4'
